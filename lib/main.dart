@@ -46,6 +46,11 @@ class _HomeScreenState extends State<HomeScreen> {
   double tomorrowPredictedChange = 0.0;
   String tomorrowTrendText = "STABLE";
 
+  // 🏛️ Real India Retail Checkout Breakdowns
+  double todayMakingCharges = 0.0;
+  double todayGST = 0.0;
+  double todayTotalCheckoutAmount = 0.0;
+
   @override
   void initState() {
     super.initState();
@@ -84,7 +89,8 @@ class _HomeScreenState extends State<HomeScreen> {
             double usdPerOunce = 1 / rates['XAU'];
             double inrPerUsd = rates['INR'].toDouble();
             double pricePerGramInr = (usdPerOunce * inrPerUsd) / 31.1035;
-            totalGramPriceInr += (pricePerGramInr * 1.03);
+            // ✅ CHANGED: 1.15 multiplier matches Indian custom duties and bullion premiums
+            totalGramPriceInr += (pricePerGramInr * 1.15);
             dayCount++;
           }
         });
@@ -116,7 +122,14 @@ class _HomeScreenState extends State<HomeScreen> {
         double pricePerGramInr = (usdPerOunce * inrPerUsd) / 31.1035;
         
         setState(() {
-          currentPriceInINR = pricePerGramInr * 1.03;
+          // ✅ CHANGED: Adjusted to 1.15 to capture realistic landing costs in India
+          currentPriceInINR = pricePerGramInr * 1.15;
+
+          // 🏛️ Compute Commercial Bill Breakdown (10% Making Charges + 3% GST)
+          todayMakingCharges = currentPriceInINR * 0.10;
+          double subtotal = currentPriceInINR + todayMakingCharges;
+          todayGST = subtotal * 0.03;
+          todayTotalCheckoutAmount = subtotal + todayGST;
         });
       }
     } catch (e) {
@@ -128,18 +141,18 @@ class _HomeScreenState extends State<HomeScreen> {
     if (currentPriceInINR <= 0) return;
 
     setState(() {
-      // 1. Dynamic Simulated Anchor for testing structural differentials
-      yesterdayPriceInINR = currentPriceInINR + 51.00; // Simulating yesterday being exactly 51 rupees more
+      // ✅ Now using dynamic, non-fixed real 14-day history trends
+      yesterdayPriceInINR = baselineAverage > 0 ? baselineAverage : currentPriceInINR * 0.995; 
       todayChange = currentPriceInINR - yesterdayPriceInINR;
 
       double variance = ((currentPriceInINR - baselineAverage) / baselineAverage) * 100;
 
-      // 2. Target Forecast Vector Matrices
+      // Target Forecast Vector Matrices
       if (variance < -0.5) {
         tomorrowPredictedPriceInINR = currentPriceInINR * 1.0045;
         tomorrowTrendText = "🚀 EXPECT GAINS";
       } else if (variance >= -0.5 && variance <= 0.3) {
-        tomorrowPredictedPriceInINR = currentPriceInINR * 0.9930; // Simulating a clean drop
+        tomorrowPredictedPriceInINR = currentPriceInINR * 0.9930; 
         tomorrowTrendText = "⏳ EXPECT DROPS";
       } else {
         tomorrowPredictedPriceInINR = currentPriceInINR * 0.9925;
@@ -183,8 +196,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Dynamic Text Format Rules for Today vs Tomorrow
     String tomorrowDeltaLabel = tomorrowPredictedChange >= 0
-        ? "₹${tomorrowPredictedChange.abs().toStringAsFixed(2)} gained"
-        : "₹${tomorrowPredictedChange.abs().toStringAsFixed(2)} reduced";
+        ? "₹${tomorrowPredictedChange.abs().toStringAsFixed(2)} might gain"
+        : "₹${tomorrowPredictedChange.abs().toStringAsFixed(2)} might reduce";
 
     Color tomorrowDeltaColor = tomorrowPredictedChange >= 0 ? Colors.redAccent : Colors.greenAccent;
 
@@ -215,7 +228,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.all(20.0),
                     child: GlassContainer(
                       width: double.infinity,
-                      height: 580, 
+                      height: 640, // Expanded height to elegantly hold the total checkout invoice data
                       blur: 15,
                       color: Colors.white.withOpacity(0.04),
                       gradient: LinearGradient(
@@ -230,17 +243,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            "AURA GOLD TIMELINE",
+                            "AURA GOLD",
                             style: GoogleFonts.poppins(
                               textStyle: TextStyle(
                                 color: Colors.grey[400],
                                 letterSpacing: 4,
-                                fontSize: 13,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 30),
+                          const SizedBox(height: 20),
                           
                           // 🏛️ STACK 1: YESTERDAY (VERTICAL BLOCK)
                           Column(
@@ -253,7 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               Text(
                                 "₹${yesterdayPriceInINR.toStringAsFixed(2)}",
                                 style: GoogleFonts.spaceGrotesk(
-                                  textStyle: TextStyle(fontSize: 26, color: Colors.grey[300], fontWeight: FontWeight.w600),
+                                  textStyle: TextStyle(fontSize: 24, color: Colors.grey[300], fontWeight: FontWeight.w600),
                                 ),
                               ),
                               Text(
@@ -264,35 +277,41 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           
                           const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 60.0, vertical: 16.0),
+                            padding: EdgeInsets.symmetric(horizontal: 60.0, vertical: 10.0),
                             child: Divider(color: Colors.white10, height: 1),
                           ),
 
-                          // 🌟 STACK 2: TODAY LIVE (CENTRAL MAIN BLOCK)
+                          // 🌟 STACK 2: TODAY LIVE (CENTRAL INVOICE BLOCK)
                           Column(
                             children: [
                               Text(
-                                "TODAY'S LIVE RATE",
+                                "TOTAL MARKET CHECKOUT AMOUNT",
                                 style: TextStyle(color: Colors.amber.withOpacity(0.8), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1),
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                "₹${currentPriceInINR.toStringAsFixed(2)}",
+                                "₹${todayTotalCheckoutAmount.toStringAsFixed(2)}",
                                 style: GoogleFonts.spaceGrotesk(
                                   textStyle: const TextStyle(
-                                    fontSize: 52,
+                                    fontSize: 48,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.amber,
                                     height: 1.1,
                                   ),
                                 ),
                               ),
-                              Text("(1g + GST)", style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                              const SizedBox(height: 6),
+                              // 🧾 Mini Cost Breakdown Specs
+                              Text(
+                                "Base Value (1g): ₹${currentPriceInINR.toStringAsFixed(0)} | Making (10%): ₹${todayMakingCharges.toStringAsFixed(0)} | GST (3%): ₹${todayGST.toStringAsFixed(0)}",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.grey[500], fontSize: 11, letterSpacing: 0.2),
+                              ),
                             ],
                           ),
                           
                           const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 60.0, vertical: 16.0),
+                            padding: EdgeInsets.symmetric(horizontal: 60.0, vertical: 10.0),
                             child: Divider(color: Colors.white10, height: 1),
                           ),
 
@@ -307,7 +326,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               Text(
                                 "₹${tomorrowPredictedPriceInINR.toStringAsFixed(2)}",
                                 style: GoogleFonts.spaceGrotesk(
-                                  textStyle: TextStyle(fontSize: 26, color: Colors.grey[300], fontWeight: FontWeight.w600),
+                                  textStyle: TextStyle(fontSize: 24, color: Colors.grey[300], fontWeight: FontWeight.w600),
                                 ),
                               ),
                               Text(
@@ -324,7 +343,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                           
-                          const SizedBox(height: 35),
+                          const SizedBox(height: 25),
                           
                           // FINAL CORE ACTION DECISION CARD
                           Container(
